@@ -19,7 +19,7 @@ module.exports.handler = async (event, context, callback) => {
 
   const email = await fetchEmail(messageId);
 
-  await parseEmail(email.Body.toString("ascii"));
+  await parseEmail(email.Body.toString("ascii"), messageId);
   callback(null);
 };
 
@@ -57,23 +57,34 @@ const fetchEmail = async (messageId) => {
   const s3 = new AWS.S3();
   return s3
     .getObject({
-      Bucket: "security.bdmenterprises.com",
+      Bucket: process.env.BUCKET,
       Key: messageId,
     })
     .promise();
 };
 
-const parseEmail = async (eml, callback) => {
+const saveImage = async (image, messageId) => {
+  const s3 = new AWS.S3();
+  return s3
+    .putObject({
+      Body: image,
+      Bucket: process.env.BUCKET,
+      Key: `image_output/${messageId}.jpg`,
+    })
+    .promise();
+};
+
+const parseEmail = async (eml, messageId) => {
   return new Promise(function (resolve, reject) {
     emlformat.read(eml, async function (error, data) {
       if (error) {
         console.log(error);
-        callback(error);
       }
 
       if (data.attachments) {
         try {
           let results = await checkImageCustom(data.attachments[0].data);
+          await saveImage(data.attachments[0].data, messageId);
           //if (labelCheck(results.Labels)) {
           if (labelCheck(results.CustomLabels)) {
             return sendEmail(data);
@@ -94,10 +105,10 @@ const parseEmail = async (eml, callback) => {
 
 const sendEmail = async (data) => {
   var mailOptions = {
-    from: "alerts@security.bdmenterprises.com",
+    from: process.env.FROM,
     subject: data.subject,
     html: data.html,
-    to: ["bdm@bdmenterprises.com", "sylver@sylverstudio.com"],
+    to: process.env.TO.split(","),
     attachments: [
       {
         filename: "movement.jpg",
