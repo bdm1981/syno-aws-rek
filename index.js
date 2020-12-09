@@ -16,6 +16,7 @@ const response = {
 module.exports.handler = async (event, context, callback) => {
   console.log(event);
   const messageId = event.Records[0].ses.mail.messageId;
+  console.log("messageId: ", messageId);
 
   const email = await fetchEmail(messageId);
 
@@ -83,10 +84,10 @@ const parseEmail = async (eml, messageId) => {
 
       if (data.attachments) {
         try {
-          let results = await checkImageCustom(data.attachments[0].data);
+          let results = await checkImage(data.attachments[0].data);
           await saveImage(data.attachments[0].data, messageId);
           //if (labelCheck(results.Labels)) {
-          if (labelCheck(results.CustomLabels)) {
+          if (labelCheck(results.Labels)) {
             return sendEmail(data);
           } else {
             console.log("no people found");
@@ -97,6 +98,7 @@ const parseEmail = async (eml, messageId) => {
           reject();
         }
       } else {
+        console.log("no email attachments found");
         resolve();
       }
     });
@@ -135,7 +137,13 @@ const labelCheck = (labels) => {
   labels.forEach((label) => {
     switch (label.Name) {
       case "person":
-        found = true;
+        if (
+          label.Geometry.BoundingBox.Left >= 0.54 &&
+          label.Geometry.BoundingBox.Top >= 0.27
+        ) {
+          found = true;
+        }
+
         break;
       case "package":
         found = true;
